@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>Hello</h1>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Home | Auto Replier</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-light">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Facebook Auto Replier</a>
+            <a class="btn btn-outline-light ms-auto" href="/logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2 class="mb-4">Your Facebook Pages</h2>
+
+        <% if (pages.length===0) { %>
+            <div class="alert alert-warning">No pages found. Make sure your account manages at least one page.</div>
+            <% } %>
+
+                <% pages.forEach(page=> { %>
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <%= page.name %>
+                            </h5>
+                            <p class="card-text">Page ID: <%= page.id %>
+                            </p>
+
+                            <form class="view-posts-form mb-3">
+                                <input type="hidden" name="pageId" value="<%= page.id %>">
+                                <button type="submit" class="btn btn-primary">Show Posts</button>
+                            </form>
+
+                            <div class="posts-container" id="posts-<%= page.id %>"></div>
+                        </div>
+                    </div>
+                    <% }); %>
+    </div>
+
+    <script>
+        document.querySelectorAll('.view-posts-form').forEach(form => {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const pageId = form.querySelector('input[name="pageId"]').value;
+                const container = document.getElementById('posts-' + pageId);
+                container.innerHTML = 'Loading posts...';
+
+                try {
+                    const res = await fetch(`/posts/${pageId}`);
+                    const posts = await res.json();
+
+                    if (!posts.length) {
+                        container.innerHTML = '<p class="text-muted">No posts found.</p>';
+                        return;
+                    }
+
+                    container.innerHTML = posts.map(post => `
+            <div class="border p-3 mb-3">
+              <p><strong>Post ID:</strong> ${post.id}</p>
+              <p>${post.message || '(No message content)'}</p>
+              <form method="POST" action="/reply/${post.id}">
+                <div class="input-group mb-2">
+                  <input type="text" name="message" placeholder="Reply message" class="form-control" required>
+                  <button class="btn btn-success" type="submit">Reply to All Comments</button>
+                </div>
+              </form>
+            </div>
+          `).join('');
+                } catch (err) {
+                    container.innerHTML = '<div class="text-danger">Failed to load posts.</div>';
+                    console.error(err);
+                }
+            });
+        });
+    </script>
+
+</body>
+
+</html>
