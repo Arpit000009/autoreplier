@@ -1,3 +1,4 @@
+// index.js
 const express = require('express');
 const session = require('express-session');
 const axios = require('axios');
@@ -98,46 +99,54 @@ app.get('/posts/:pageId', async (req, res) => {
   }
 });
 
-// ✅ Replied using page access token
+// Reply to comments on a post (only if not already replied by this app)
 app.post('/reply/:postId', async (req, res) => {
-    const { postId } = req.params;
-    const { message } = req.body;
-  
-    try {
-      // Extract page ID from postId format: {pageId}_{postId}
-      const pageId = postId.split('_')[0];
-      const page = pages.find(p => p.id === pageId);
-  
-      if (!page || !page.access_token) {
-        return res.status(400).json({ error: 'Page access token not found' });
-      }
-  
-      const pageAccessToken = page.access_token;
-  
-      // ✅ Use PAGE token to get comments
-      const commentsRes = await axios.get(`https://graph.facebook.com/${postId}/comments`, {
-        params: { access_token: pageAccessToken }
-      });
-  
-      const comments = commentsRes.data.data;
-  
-      // ✅ Use PAGE token to reply to each comment
-      const replyPromises = comments.map(comment =>
-        axios.post(`https://graph.facebook.com/${comment.id}/comments`, {
-          message
-        }, {
-          params: { access_token: pageAccessToken }
-        })
-      );
-  
-      await Promise.all(replyPromises);
-      res.json({ status: 'Replied to all comments successfully' });
-    } catch (err) {
-      console.error('Reply error:', err?.response?.data || err.message || err);
-      res.status(500).json({ error: 'Failed to reply to comments' });
+  const { postId } = req.params;
+  const { message } = req.body;
+
+  try {
+    const pageId = postId.split('_')[0];
+    const page = pages.find(p => p.id === pageId);
+
+    if (!page) {
+      return res.status(400).json({ error: 'Page not found for this post' });
     }
-  });
-  
+
+    // Get all comments
+    const commentsRes = await axios.get(`https://graph.facebook.com/${postId}/comments`, {
+      params: { access_token: page.access_token }
+    });
+
+    const comments = commentsRes.data.data;
+    const replyTasks = [];
+
+    for (const comment of comments) {
+      // Check replies for each comment
+      const repliesRes = await axios.get(`https://graph.facebook.com/${comment.id}/comments`, {
+        params: { access_token: page.access_token }
+      });
+
+      const alreadyReplied = repliesRes.data.data.some(reply => reply.message === message);
+
+      if (!alreadyReplied) {
+        replyTasks.push(
+          axios.post(`https://graph.facebook.com/${comment.id}/comments`, {
+            message
+          }, {
+            params: { access_token: page.access_token }
+          })
+        );
+      }
+    }
+
+    await Promise.all(replyTasks);
+
+    res.json({ status: ' Replied to new comments only' });
+  } catch (err) {
+    console.error('Reply error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'Failed to reply to comments' });
+  }
+});
 
 // Logout
 app.get('/logout', (req, res) => {
